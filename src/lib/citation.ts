@@ -164,6 +164,37 @@ function parseUs(rest: string, query: string): ParsedRef | string {
   };
 }
 
+const US_CITATION_RE = /^(amend|art\.?[ivx\d]|article[ivx\d]|preamble|pmbl|\d+(st|nd|rd|th)amend)|修正案/;
+
+/**
+ * Which book an input cites, if it reads as a citation rather than a keyword:
+ * a law name followed by an article number, or a U.S. Constitution form.
+ * With a `fallback` book, bare article numbers such as「184條」also count.
+ */
+export function citationBook(input: string, fallback?: BookKey): BookKey | null {
+  const s = normalize(input);
+  if (US_CITATION_RE.test(s)) return "us-constitution";
+  for (const [re, name] of ALIASES) {
+    const m = re.exec(s);
+    if (m) return /^第?[§\d]|[\dⅰ-ⅻⅠ-Ⅻ]/.test(s.slice(m[0].length)) ? CODE_BOOK[name] : null;
+  }
+  if (fallback && /^(第|§)?\d+(條|-\d|$)/.test(s)) return fallback;
+  return null;
+}
+
+/** Law name typed in front of keywords, e.g.「刑法 公務員」or「刑法公務員」. */
+export function leadingLawName(query: string): { book: BookKey; rest: string } | null {
+  const s = query
+    .trim()
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .toLowerCase();
+  for (const [re, name] of ALIASES) {
+    const m = re.exec(s);
+    if (m) return { book: CODE_BOOK[name], rest: query.trim().slice(m[0].length).trim() };
+  }
+  return null;
+}
+
 /**
  * Parse free-form citation text such as「民法184條1項前段、第2項」or
  * 「刑法第10條第2項第1款；憲法增修條文第4條」into structured targets.

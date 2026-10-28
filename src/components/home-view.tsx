@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DataTools } from "@/components/data-tools";
+import { LawSearch } from "@/components/law-search";
 import { InstallHint } from "@/components/pwa";
 import { Seal } from "@/components/seal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export function HomeView() {
         </div>
       </header>
       <InstallHint />
+
+      <LawSearch />
 
       <section className="mt-10">
         <div className="flex items-end justify-between gap-3">
