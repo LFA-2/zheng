@@ -15,6 +15,8 @@ export function UpdateBanner() {
 
     let registration: ServiceWorkerRegistration | undefined;
     let reloading = false;
+    // The first install also fires controllerchange (clients.claim); only updates should reload.
+    const hadController = !!navigator.serviceWorker.controller;
 
     const track = (worker: ServiceWorker | null) => {
       if (!worker) return;
@@ -38,7 +40,7 @@ export function UpdateBanner() {
       .catch(() => {});
 
     const onControllerChange = () => {
-      if (reloading) return;
+      if (reloading || !hadController) return;
       reloading = true;
       window.location.reload();
     };
