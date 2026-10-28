@@ -1,0 +1,76 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Every Monday 03:00 Taiwan time: pick up statute amendments.
+    - cron: "0 19 * * 0"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Refresh law data
+        if: github.event_name != 'push'
+        run: npm run laws
+
+      - name: Commit updated law data
+        id: decide
+        run: |
+          if git diff --quiet -- public/laws; then
+            echo "法規資料沒有變動"
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "deploy=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add public/laws
+            git commit -m "chore: 更新法規資料"
+            git push
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          export NEXT_PUBLIC_BASE_PATH="/${GITHUB_REPOSITORY#*/}"
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.decide.outputs.deploy == 'true'
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
